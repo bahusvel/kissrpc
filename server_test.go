@@ -1,0 +1,80 @@
+package kissrpc
+
+import (
+	"log"
+	"net"
+	"testing"
+)
+
+type TestService struct {
+	Hello func()
+}
+
+func TestSimpleCall(t *testing.T) {
+	s, c := net.Pipe()
+	mtable := MethodTable{}
+	mtable.AddFunc("Test", func(text string, number int) {
+		log.Println("Hello!", text, number)
+	})
+	server := NewServer(s, mtable)
+	go server.Serve()
+
+	client, err := NewClient(c)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	_, err = client.Call("Test", "Test", 1)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	server.Stop()
+}
+
+func TestSimpleService(t *testing.T) {
+	s, c := net.Pipe()
+	mtable := MethodTable{}
+	mtable.AddService(TestService{Hello: func() { log.Println("Hello") }})
+	server := NewServer(s, mtable)
+	go server.Serve()
+
+	clientService := TestService{}
+	err := ConnectService(c, &clientService)
+	if err != nil {
+		log.Fatal(err)
+	}
+	clientService.Hello()
+	server.Stop()
+}
+
+type TestIface interface {
+	is_testiface()
+}
+
+type TestStruct struct {
+	Text string
+}
+
+func (this TestStruct) is_testiface() {
+
+}
+
+func TestInterfaceFunc(t *testing.T) {
+	s, c := net.Pipe()
+	mtable := MethodTable{}
+	RegisterType(TestStruct{})
+	mtable.AddFunc("Test", func(test TestIface) {
+		log.Println("Hello!", test.(TestStruct).Text)
+	})
+	server := NewServer(s, mtable)
+	go server.Serve()
+
+	client, err := NewClient(c)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	_, err = client.Call("Test", TestIface(TestStruct{"Test"}))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	server.Stop()
+}
