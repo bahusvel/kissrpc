@@ -78,3 +78,24 @@ func TestInterfaceFunc(t *testing.T) {
 	}
 	server.Stop()
 }
+
+func BenchmarkSimpleCall(b *testing.B) {
+	s, c := net.Pipe()
+	mtable := MethodTable{}
+	mtable.AddFunc("Test", func(number int) int {
+		//log.Println("Hello!", text, number)
+		return number
+	})
+	server := NewServer(s, mtable)
+	go server.Serve()
+
+	client, err := NewClient(c)
+	if err != nil {
+		b.Error(err.Error())
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		client.Call("Test", n)
+	}
+	//server.Stop()
+}
