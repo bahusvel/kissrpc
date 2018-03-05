@@ -7,4 +7,6 @@ KissRPC implements type safe RPC by declaring services as structs of functions, 
 
 KissRPC enforces no format on the methods it can export, it supports everything that go does (except for channels), because it uses [gob](https://golang.org/pkg/encoding/gob/) for encoding and reflection for automatic casting. (Yes reflection is slow, and KissRPC lets you avoid it if you want, but it primarly focuses on ease of use, and blindly sacrificing everything for performance.)
 
+Your code, your datastructures and your functions are the declaration of your RPC services, there is no separate description format to maintain, compile or model. As long as you are using the same code on both sides you will be fine. (Yes that does mean there is no cross language operation, but that's not the point of kissrpc.)
+
 If you are frustrated with other RPC libraries, try this one. The documentation is [here](https://golang.org/pkg/net/rpc/) and the code is small so hack away!
