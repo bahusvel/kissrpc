@@ -9,4 +9,4 @@ KissRPC enforces no format on the methods it can export, it supports everything 
 
 Your code, your datastructures and your functions are the declaration of your RPC services, there is no separate description format to maintain, compile or model. As long as you are using the same code on both sides you will be fine. (Yes that does mean there is no cross language operation, but that's not the point of kissrpc.)
 
-If you are frustrated with other RPC libraries, try this one. The documentation is [here](https://golang.org/pkg/net/rpc/) and the code is small so hack away!
+If you are frustrated with other RPC libraries, try this one. The documentation is [here](https://godoc.org/github.com/bahusvel/kissrpc) and the code is small so hack away!
