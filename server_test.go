@@ -8,6 +8,7 @@ import (
 
 type TestService struct {
 	Hello func()
+	Error func() error
 }
 
 func TestSimpleCall(t *testing.T) {
@@ -33,7 +34,7 @@ func TestSimpleCall(t *testing.T) {
 func TestSimpleService(t *testing.T) {
 	s, c := net.Pipe()
 	mtable := MethodTable{}
-	mtable.AddService(TestService{Hello: func() { log.Println("Hello") }})
+	mtable.AddService(TestService{Hello: func() { log.Println("Hello") }, Error: func() error { return nil }})
 	server := NewServer(s, mtable)
 	go server.Serve()
 
@@ -43,6 +44,7 @@ func TestSimpleService(t *testing.T) {
 		log.Fatal(err)
 	}
 	clientService.Hello()
+	clientService.Error()
 	server.Stop()
 }
 

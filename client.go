@@ -13,6 +13,8 @@ type Client struct {
 	decoder    *gob.Decoder
 }
 
+var errorType = reflect.TypeOf(new(error)).Elem()
+
 func ConnectService(conn net.Conn, service interface{}) error {
 	client, err := NewClient(conn)
 	if err != nil {
@@ -27,12 +29,16 @@ func ConnectService(conn net.Conn, service interface{}) error {
 	for i := 0; i < serviceType.NumField(); i++ {
 		field := serviceType.Field(i)
 		if field.Type.Kind() != reflect.Func {
-			panic(fmt.Errorf("Field %s of %s is not a function, only functions are supported", field.Name, serviceType.Name()))
+			panic(fmt.Errorf("Field %s of %s is not a function, only functions are permitted for declaration of services", field.Name, serviceType.Name()))
 		}
 		fieldFunc := reflect.MakeFunc(field.Type, func(in []reflect.Value) []reflect.Value {
 			rets, err := client.valueCall(serviceType.Name()+"."+field.Name, in)
 			if err != nil {
 				panic(err)
+			}
+
+			if field.Type.NumOut() != 0 && field.Type.Out(field.Type.NumOut()-1) == errorType && !rets[len(rets)-1].IsValid() {
+				rets[len(rets)-1] = reflect.Zero(errorType)
 			}
 			return rets
 		})
