@@ -142,3 +142,7 @@ func registerType(inType reflect.Type) {
 func RegisterType(regType interface{}) {
 	gob.Register(regType)
 }
+
+func RegisterNamedType(name string, regType interface{}) {
+	gob.RegisterName(name, regType)
+}
