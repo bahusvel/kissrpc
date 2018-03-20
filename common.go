@@ -2,6 +2,7 @@ package kissrpc
 
 import (
 	"encoding/gob"
+	"errors"
 	"log"
 	"reflect"
 )
@@ -29,47 +30,52 @@ type callReturn struct {
 }
 
 func registerType(inType reflect.Type) {
-	if _, ok := registeredTypes[inType.String()]; ok {
+	err := registerInternal(inType, reflect.Indirect(reflect.New(inType)).Interface())
+	if err != nil {
 		return
 	}
-	if inType.Kind() == reflect.Interface { // Interfaces should not be registered
-		return
+}
+
+func registerInternal(t reflect.Type, v interface{}) error {
+	if _, ok := registeredTypes[t.String()]; ok {
+		return errors.New("Type is already registered")
+	}
+	switch t.Kind() {
+	case reflect.Interface:
+		return errors.New("Type is an interface, please register structs implementing this interface directly instead")
+	case reflect.Func:
+		panic("Type is a function, functions cannot be registered as values")
+	case reflect.Chan:
+		panic("Type is a channel, channels cannot be registered as values")
+	case reflect.Struct:
+		for i := 0; i < t.NumField(); i++ {
+			registerType(t.Field(i).Type)
+		}
 	}
 	if DEBUG {
-		log.Println("Registering type", inType.String())
+		log.Println("Registering type", t.String())
 	}
-	gob.Register(reflect.Indirect(reflect.New(inType)).Interface())
-	registeredTypes[inType.String()] = struct{}{}
-
+	gob.Register(v)
+	registeredTypes[t.String()] = struct{}{}
+	return nil
 }
 
 func RegisterType(regType interface{}) {
 	t := reflect.TypeOf(regType)
-	if _, ok := registeredTypes[t.String()]; ok {
-		return
+	err := registerInternal(t, regType)
+	if err != nil {
+		panic(t)
 	}
-	if t.Kind() == reflect.Interface { // Interfaces should not be registered
-		return
-	}
-	if DEBUG {
-		log.Println("Registering type", t.String())
-	}
-	gob.Register(regType)
-	registeredTypes[t.String()] = struct{}{}
 }
 
-func RegisterNamedType(name string, regType interface{}) {
-	t := reflect.TypeOf(regType)
-	if _, ok := registeredTypes[name]; ok {
-		return
+func registerInsOuts(f reflect.Type) {
+	if f.Kind() != reflect.Func {
+		panic("f is not a function")
 	}
-	if t.Kind() == reflect.Interface { // Interfaces should not be registered
-		return
+	for i := 0; i < f.NumIn(); i++ {
+		registerType(f.In(i))
 	}
-	if DEBUG {
-		log.Println("Registering type", t.String())
+	for i := 0; i < f.NumOut(); i++ {
+		registerType(f.Out(i))
 	}
-	gob.RegisterName(name, regType)
-	registeredTypes[name] = struct{}{}
-
 }

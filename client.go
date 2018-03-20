@@ -42,35 +42,25 @@ func ConnectService(conn net.Conn, service interface{}) error {
 			panic(fmt.Errorf("Field %s of %s is not a function, only functions are permitted for declaration of services", field.Name, serviceType.Name()))
 		}
 
-		lastIsError := false
-		if field.Type.NumOut() != 0 && field.Type.Out(field.Type.NumOut()-1) == errorType {
-			lastIsError = true
-		}
+		lastIsError := field.Type.NumOut() != 0 && field.Type.Out(field.Type.NumOut()-1) == errorType
+		async := field.Type.NumOut() == 0
 
 		fieldFunc := reflect.MakeFunc(field.Type, func(in []reflect.Value) []reflect.Value {
 			var rets []reflect.Value
 			var err error
-			if field.Type.NumOut() == 0 {
-				// Async
-				rets, err = client.valueCall(serviceType.Name()+"."+field.Name, in, true)
-				if err != nil {
+			// Async
+			rets, err = client.valueCall(serviceType.Name()+"."+field.Name, in, async)
+			if err != nil {
+				if lastIsError {
+					rets = genZeroReturn(field.Type)
+					rets[len(rets)-1] = reflect.ValueOf(&err).Elem()
+				} else {
 					panic(err)
 				}
-
-			} else {
-				rets, err = client.valueCall(serviceType.Name()+"."+field.Name, in, false)
-				if err != nil {
-					if lastIsError {
-						rets = genZeroReturn(field.Type)
-						rets[len(rets)-1] = reflect.ValueOf(&err).Elem()
-					} else {
-						panic(err)
-					}
-				}
-				if lastIsError && !rets[len(rets)-1].IsValid() {
-					// prevents invalid error value if nil, HACK I think this is still problematic of return value contains any other interface whose value is nil.
-					rets[len(rets)-1] = reflect.Zero(errorType)
-				}
+			}
+			if lastIsError && !rets[len(rets)-1].IsValid() {
+				// prevents invalid error value if nil, HACK I think this is still problematic of return value contains any other interface whose value is nil.
+				rets[len(rets)-1] = reflect.Zero(errorType)
 			}
 			return rets
 		})
