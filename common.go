@@ -7,7 +7,7 @@ import (
 	"reflect"
 )
 
-const DEBUG = false
+const debug = false
 
 var registeredTypes = map[string]struct{}{
 	"string": {},
@@ -52,7 +52,7 @@ func registerInternal(t reflect.Type, v interface{}) error {
 			registerType(t.Field(i).Type)
 		}
 	}
-	if DEBUG {
+	if debug {
 		log.Println("Registering type", t.String())
 	}
 	gob.Register(v)

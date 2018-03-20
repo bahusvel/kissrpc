@@ -20,11 +20,8 @@ func TestSimpleCall(t *testing.T) {
 	server := NewServer(s, mtable)
 	go server.Serve()
 
-	client, err := NewClient(c)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	_, err = client.Call("Test", "Test", 1)
+	client := NewClient(c)
+	_, err := client.Call("Test", "Test", 1)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -39,7 +36,8 @@ func TestSimpleService(t *testing.T) {
 	go server.Serve()
 
 	clientService := TestService{}
-	err := ConnectService(c, &clientService)
+	client := NewClient(c)
+	err := client.MakeService(&clientService)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,11 +73,8 @@ func TestInterfaceFunc(t *testing.T) {
 	server := NewServer(s, mtable)
 	go server.Serve()
 
-	client, err := NewClient(c)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	_, err = client.Call("Test", TestIface(TestStruct{"Test"}))
+	client := NewClient(c)
+	_, err := client.Call("Test", TestIface(TestStruct{"Test"}))
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -96,10 +91,7 @@ func BenchmarkSimpleCall(b *testing.B) {
 	server := NewServer(s, mtable)
 	go server.Serve()
 
-	client, err := NewClient(c)
-	if err != nil {
-		b.Error(err.Error())
-	}
+	client := NewClient(c)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		client.Call("Test", n)

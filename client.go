@@ -2,15 +2,16 @@ package kissrpc
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
 )
 
 type Client struct {
-	connection net.Conn
-	encoder    *gob.Encoder
-	decoder    *gob.Decoder
+	Conn    net.Conn
+	encoder *gob.Encoder
+	decoder *gob.Decoder
 }
 
 var errorType = reflect.TypeOf(new(error)).Elem()
@@ -25,15 +26,75 @@ func genZeroReturn(f reflect.Type) (ret []reflect.Value) {
 	return ret
 }
 
-func ConnectService(conn net.Conn, service interface{}) error {
-	client, err := NewClient(conn)
+func (this Client) MakeProxyFunc(name string, PtrToFunc interface{}) error {
+	val := reflect.ValueOf(PtrToFunc)
+	if val.Kind() != reflect.Ptr || reflect.Indirect(val).Kind() != reflect.Func {
+		panic(fmt.Errorf("Supplied service is not a pointer to struct"))
+	}
+	ret, err := this.Call("kissrpc.getTable")
 	if err != nil {
 		return err
 	}
+	if len(ret) != 1 {
+		return errors.New("Cannot get method table from server")
+	}
+	table, ok := ret[0].(map[string]string)
+	if !ok {
+		return errors.New("Cannot get method table from server")
+	}
+
+	if v, ok := table[name]; !ok || v != val.Type().String() {
+		return fmt.Errorf("Requested method %s was not found on the server or its signature does not match", name)
+	}
+
+	this.makeProxyFunc(name, val)
+
+	return nil
+}
+
+func (this Client) makeProxyFunc(name string, val reflect.Value) {
+	lastIsError := val.Type().NumOut() != 0 && val.Type().Out(val.Type().NumOut()-1) == errorType
+	async := val.Type().NumOut() == 0
+	fieldFunc := reflect.MakeFunc(val.Type(), func(in []reflect.Value) []reflect.Value {
+		var rets []reflect.Value
+		var err error
+		// Async
+		rets, err = this.valueCall(name, in, async)
+		if err != nil {
+			if lastIsError {
+				rets = genZeroReturn(val.Type())
+				rets[len(rets)-1] = reflect.ValueOf(&err).Elem()
+			} else {
+				panic(err)
+			}
+		}
+		if lastIsError && !rets[len(rets)-1].IsValid() {
+			// prevents invalid error value if nil, HACK I think this is still problematic of return value contains any other interface whose value is nil.
+			rets[len(rets)-1] = reflect.Zero(errorType)
+		}
+		return rets
+	})
+	val.Set(fieldFunc)
+}
+
+func (this Client) MakeService(service interface{}) error {
 	val := reflect.ValueOf(service)
 	if val.Kind() != reflect.Ptr || reflect.Indirect(val).Kind() != reflect.Struct {
 		panic(fmt.Errorf("Supplied service is not a pointer to struct"))
 	}
+
+	ret, err := this.Call("kissrpc.getTable")
+	if err != nil {
+		return err
+	}
+	if len(ret) != 1 {
+		return errors.New("Cannot get method table from server")
+	}
+	table, ok := ret[0].(map[string]string)
+	if !ok {
+		return errors.New("Cannot get method table from server")
+	}
+
 	val = reflect.Indirect(val)
 	serviceType := val.Type()
 	for i := 0; i < serviceType.NumField(); i++ {
@@ -42,36 +103,20 @@ func ConnectService(conn net.Conn, service interface{}) error {
 			panic(fmt.Errorf("Field %s of %s is not a function, only functions are permitted for declaration of services", field.Name, serviceType.Name()))
 		}
 
-		lastIsError := field.Type.NumOut() != 0 && field.Type.Out(field.Type.NumOut()-1) == errorType
-		async := field.Type.NumOut() == 0
+		fieldName := serviceType.Name() + "." + field.Name
 
-		fieldFunc := reflect.MakeFunc(field.Type, func(in []reflect.Value) []reflect.Value {
-			var rets []reflect.Value
-			var err error
-			// Async
-			rets, err = client.valueCall(serviceType.Name()+"."+field.Name, in, async)
-			if err != nil {
-				if lastIsError {
-					rets = genZeroReturn(field.Type)
-					rets[len(rets)-1] = reflect.ValueOf(&err).Elem()
-				} else {
-					panic(err)
-				}
-			}
-			if lastIsError && !rets[len(rets)-1].IsValid() {
-				// prevents invalid error value if nil, HACK I think this is still problematic of return value contains any other interface whose value is nil.
-				rets[len(rets)-1] = reflect.Zero(errorType)
-			}
-			return rets
-		})
-		val.Field(i).Set(fieldFunc)
+		if v, ok := table[fieldName]; !ok || v != field.Type.String() {
+			return fmt.Errorf("Requested method %s was not found on the server or its signature does not match", fieldName)
+		}
+
+		this.makeProxyFunc(fieldName, val.Field(i))
 	}
 	return nil
 }
 
-func NewClient(conn net.Conn) (*Client, error) {
+func NewClient(conn net.Conn) *Client {
 	client := Client{conn, gob.NewEncoder(conn), gob.NewDecoder(conn)}
-	return &client, nil
+	return &client
 }
 
 func (this Client) valueCall(name string, in []reflect.Value, async bool) ([]reflect.Value, error) {

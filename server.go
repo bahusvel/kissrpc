@@ -16,7 +16,7 @@ func init() {
 type MethodTable map[string]reflect.Value
 
 type Server struct {
-	connection  net.Conn
+	Conn        net.Conn
 	encoder     *gob.Encoder
 	decoder     *gob.Decoder
 	methodTable MethodTable
@@ -29,11 +29,12 @@ func NewServer(conn net.Conn, mtable MethodTable) *Server {
 		gob.NewDecoder(conn),
 		mtable,
 	}
+	server.methodTable.AddFunc("kissrpc.getTable", server.getTable)
 	return server
 }
 
 func (this *Server) Stop() {
-	this.connection.Close()
+	this.Conn.Close()
 }
 
 func (this *Server) Serve() {
@@ -48,7 +49,7 @@ func (this *Server) Serve() {
 		}
 		var method reflect.Value
 		var ok bool
-		if DEBUG {
+		if debug {
 			log.Println("Calling", callRequest.Name)
 		}
 		if method, ok = this.methodTable[callRequest.Name]; !ok {
@@ -80,7 +81,7 @@ func (this MethodTable) AddFunc(name string, function interface{}) {
 		panic(fmt.Errorf("%s is not a function", name))
 	}
 	funcType := val.Type()
-	if DEBUG {
+	if debug {
 		log.Printf("Function %s has type %s\n", name, funcType.String())
 	}
 	for i := 0; i < funcType.NumIn(); i++ {
@@ -105,4 +106,12 @@ func (this MethodTable) AddService(service interface{}) {
 		}
 		this.AddFunc(serviceType.Name()+"."+field.Name, val.Field(i).Interface())
 	}
+}
+
+func (this Server) getTable() map[string]string {
+	wiretable := map[string]string{}
+	for k, v := range this.methodTable {
+		wiretable[k] = v.Type().String()
+	}
+	return wiretable
 }
