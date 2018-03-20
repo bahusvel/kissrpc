@@ -46,6 +46,11 @@ func TestSimpleService(t *testing.T) {
 	clientService.Hello()
 	clientService.Error()
 	server.Stop()
+	err = clientService.Error()
+	if err == nil {
+		t.Fail()
+	}
+	log.Println(err)
 }
 
 type TestIface interface {

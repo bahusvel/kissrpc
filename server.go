@@ -2,35 +2,15 @@ package kissrpc
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"reflect"
 )
 
-const DEBUG = false
-
-var registeredTypes = map[string]struct{}{
-	"string": {},
-	"float":  {},
-	"int":    {},
-	"int32":  {},
-	"int64":  {},
-	"error":  {},
-}
-
 func init() {
 	RegisterType([]interface{}{})
-}
-
-type call struct {
-	Name string
-	Args []interface{}
-}
-
-type callReturn struct {
-	ReturnValues []interface{}
-	Error        error
 }
 
 type MethodTable map[string]reflect.Value
@@ -59,6 +39,8 @@ func (this *Server) Stop() {
 func (this *Server) Serve() {
 	for {
 		callRequest := call{}
+		ret := callReturn{}
+
 		err := this.decoder.Decode(&callRequest)
 		if err != nil {
 			log.Println("Failed to read call request", err)
@@ -71,19 +53,20 @@ func (this *Server) Serve() {
 		}
 		if method, ok = this.methodTable[callRequest.Name]; !ok {
 			log.Println("Requested method not found", callRequest.Name)
+			ret.Error = errors.New("Requested method not found")
 			return
 		}
-
 		arguments := []reflect.Value{}
 		for _, arg := range callRequest.Args {
 			arguments = append(arguments, reflect.ValueOf(arg))
 		}
-
-		retVals := []interface{}{}
 		for _, retVal := range method.Call(arguments) {
-			retVals = append(retVals, retVal.Interface())
+			ret.ReturnValues = append(ret.ReturnValues, retVal.Interface())
 		}
-		this.encoder.Encode(callReturn{ReturnValues: retVals})
+		if callRequest.Async {
+			continue
+		}
+		this.encoder.Encode(ret)
 		if err != nil {
 			log.Println("Failed to write call response", err)
 			return
@@ -122,27 +105,4 @@ func (this MethodTable) AddService(service interface{}) {
 		}
 		this.AddFunc(serviceType.Name()+"."+field.Name, val.Field(i).Interface())
 	}
-}
-
-func registerType(inType reflect.Type) {
-	if _, ok := registeredTypes[inType.String()]; ok {
-		return
-	}
-	if inType.Kind() == reflect.Interface { // Interfaces should not be registered
-		return
-	}
-	if DEBUG {
-		log.Println("Registering type", inType.String())
-	}
-	gob.Register(reflect.Indirect(reflect.New(inType)).Interface())
-	registeredTypes[inType.String()] = struct{}{}
-
-}
-
-func RegisterType(regType interface{}) {
-	gob.Register(regType)
-}
-
-func RegisterNamedType(name string, regType interface{}) {
-	gob.RegisterName(name, regType)
 }
