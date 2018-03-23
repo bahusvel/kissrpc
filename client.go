@@ -53,28 +53,30 @@ func (this Client) MakeProxyFunc(name string, PtrToFunc interface{}) error {
 }
 
 func (this Client) makeProxyFunc(name string, val reflect.Value) {
-	lastIsError := val.Type().NumOut() != 0 && val.Type().Out(val.Type().NumOut()-1) == errorType
-	async := val.Type().NumOut() == 0
-	fieldFunc := reflect.MakeFunc(val.Type(), func(in []reflect.Value) []reflect.Value {
-		var rets []reflect.Value
-		var err error
-		// Async
-		rets, err = this.valueCall(name, in, async)
+	t := val.Type()
+	registerInsOuts(t)
+	async := t.NumOut() == 0
+	lastIsError := !async && t.Out(t.NumOut()-1) == errorType
+	zeroReturn := []reflect.Value{}
+	if lastIsError {
+		zeroReturn = genZeroReturn(t)
+	}
+	val.Set(reflect.MakeFunc(val.Type(), func(in []reflect.Value) []reflect.Value {
+		rets, err := this.valueCall(name, in, async)
 		if err != nil {
 			if lastIsError {
-				rets = genZeroReturn(val.Type())
+				rets = zeroReturn
 				rets[len(rets)-1] = reflect.ValueOf(&err).Elem()
 			} else {
 				panic(err)
 			}
 		}
 		if lastIsError && !rets[len(rets)-1].IsValid() {
-			// prevents invalid error value if nil, HACK I think this is still problematic of return value contains any other interface whose value is nil.
+			// prevents invalid error value if nil, HACK I think this is still problematic if return value contains any other interface whose value is nil.
 			rets[len(rets)-1] = reflect.Zero(errorType)
 		}
 		return rets
-	})
-	val.Set(fieldFunc)
+	}))
 }
 
 func (this Client) MakeService(service interface{}) error {
