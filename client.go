@@ -8,6 +8,10 @@ import (
 	"reflect"
 )
 
+func init() {
+	RegisterType(map[string]string{})
+}
+
 type Client struct {
 	Conn    net.Conn
 	encoder *gob.Encoder
