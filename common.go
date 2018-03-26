@@ -64,7 +64,7 @@ func RegisterType(regType interface{}) {
 	t := reflect.TypeOf(regType)
 	err := registerInternal(t, regType)
 	if err != nil {
-		panic(t)
+		panic(err)
 	}
 }
 
