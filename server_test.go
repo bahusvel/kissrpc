@@ -1,6 +1,7 @@
 package kissrpc
 
 import (
+	"errors"
 	"log"
 	"net"
 	"testing"
@@ -69,7 +70,7 @@ func TestSimpleService(t *testing.T) {
 	mtable.AddService(TestService{Hello: func() string {
 		log.Println("Hello")
 		return "Hello"
-	}, Error: func() error { return nil }})
+	}, Error: func() error { return errors.New("Hello") }})
 	server := NewServer(s, mtable)
 	go server.Serve()
 

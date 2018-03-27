@@ -43,6 +43,24 @@ type callReturn struct {
 	Error        error
 }
 
+var gobErrorType = reflect.TypeOf(gobError{})
+
+type gobError struct {
+	Error string
+}
+
+func fromError(err error) gobError {
+	return gobError{err.Error()}
+}
+
+func (this gobError) toError() error {
+	return errors.New(this.Error)
+}
+
+func init() {
+	RegisterType(gobError{})
+}
+
 func registerType(inType reflect.Type) {
 	for inType.Kind() == reflect.Ptr {
 		inType = inType.Elem()
