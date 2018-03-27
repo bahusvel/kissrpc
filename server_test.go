@@ -7,8 +7,19 @@ import (
 )
 
 type TestService struct {
-	Hello func()
+	Hello func() string
 	Error func() error
+}
+
+type SimpleStruct struct {
+}
+
+type ComplexStruct struct {
+	Iface TestIface
+}
+
+type ComplexService struct {
+	Func func(ComplexStruct) (ComplexStruct, error)
 }
 
 func TestSimpleCall(t *testing.T) {
@@ -28,10 +39,37 @@ func TestSimpleCall(t *testing.T) {
 	server.Stop()
 }
 
+func TestMultiple(t *testing.T) {
+	//RegisterType(TestStruct{})
+	s, c := net.Pipe()
+	mtable := MethodTable{}
+	mtable.AddService(ComplexService{func(complex ComplexStruct) (ComplexStruct, error) {
+		log.Println("Hello")
+		return ComplexStruct{TestStruct{}}, nil
+	}})
+	server := NewServer(s, mtable)
+	go server.Serve()
+
+	clientService := ComplexService{}
+	client := NewClient(c)
+	err := client.MakeService(&clientService)
+	if err != nil {
+		log.Fatal(err)
+	}
+	clientService.Func(ComplexStruct{})
+	clientService.Func(ComplexStruct{})
+	clientService.Func(ComplexStruct{})
+	clientService.Func(ComplexStruct{})
+	server.Stop()
+}
+
 func TestSimpleService(t *testing.T) {
 	s, c := net.Pipe()
 	mtable := MethodTable{}
-	mtable.AddService(TestService{Hello: func() { log.Println("Hello") }, Error: func() error { return nil }})
+	mtable.AddService(TestService{Hello: func() string {
+		log.Println("Hello")
+		return "Hello"
+	}, Error: func() error { return nil }})
 	server := NewServer(s, mtable)
 	go server.Serve()
 

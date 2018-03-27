@@ -25,7 +25,7 @@ func genZeroReturn(f reflect.Type) (ret []reflect.Value) {
 		panic("f is not a function")
 	}
 	for i := 0; i < f.NumOut(); i++ {
-		ret = append(ret, reflect.New(f.Out(i)))
+		ret = append(ret, reflect.New(f.Out(i)).Elem())
 	}
 	return ret
 }

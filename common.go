@@ -9,13 +9,27 @@ import (
 
 const debug = false
 
+//Types already known by gob.
 var registeredTypes = map[string]struct{}{
-	"string": {},
-	"float":  {},
-	"int":    {},
-	"int32":  {},
-	"int64":  {},
-	"error":  {},
+	"string":     {},
+	"float32":    {},
+	"float64":    {},
+	"byte":       {},
+	"int":        {},
+	"uint":       {},
+	"int8":       {},
+	"uint8":      {},
+	"int16":      {},
+	"uint16":     {},
+	"int32":      {},
+	"uint32":     {},
+	"int64":      {},
+	"uint64":     {},
+	"error":      {},
+	"bool":       {},
+	"[]byte":     {},
+	"complex64":  {},
+	"complex128": {},
 }
 
 type call struct {
@@ -30,7 +44,10 @@ type callReturn struct {
 }
 
 func registerType(inType reflect.Type) {
-	err := registerInternal(inType, reflect.Indirect(reflect.New(inType)).Interface())
+	for inType.Kind() == reflect.Ptr {
+		inType = inType.Elem()
+	}
+	err := registerInternal(inType, reflect.New(inType).Elem().Interface())
 	if err != nil {
 		return
 	}
@@ -38,7 +55,7 @@ func registerType(inType reflect.Type) {
 
 func registerInternal(t reflect.Type, v interface{}) error {
 	if _, ok := registeredTypes[t.String()]; ok {
-		return errors.New("Type is already registered")
+		return nil // Type already registered but its ok
 	}
 	switch t.Kind() {
 	case reflect.Interface:

@@ -67,7 +67,7 @@ func (this *Server) Serve() {
 		if callRequest.Async {
 			continue
 		}
-		this.encoder.Encode(ret)
+		err = this.encoder.Encode(ret)
 		if err != nil {
 			log.Println("Failed to write call response", err)
 			return
