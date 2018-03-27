@@ -62,7 +62,7 @@ func (this *Server) Serve() {
 			arguments = append(arguments, reflect.ValueOf(arg))
 		}
 		for _, retVal := range method.Call(arguments) {
-			if retVal.Type().Kind() == reflect.Interface && retVal.Type().Implements(errorType) {
+			if retVal.Type().Kind() == reflect.Interface && retVal.Type().Implements(errorType) && !retVal.IsNil() {
 				retVal = reflect.ValueOf(fromError(retVal.Interface().(error)))
 			}
 			ret.ReturnValues = append(ret.ReturnValues, retVal.Interface())

@@ -150,7 +150,7 @@ func (this Client) valueCall(name string, in []reflect.Value, async bool) ([]ref
 	rets := []reflect.Value{}
 	for _, retval := range retValues.ReturnValues {
 		val := reflect.ValueOf(retval)
-		if val.Type() == gobErrorType {
+		if val.IsValid() && val.Type() == gobErrorType {
 			realError := retValues.ReturnValues[len(retValues.ReturnValues)-1].(gobError).toError()
 			val = reflect.ValueOf(&realError).Elem()
 		}
