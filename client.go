@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"sync"
 )
 
 func init() {
@@ -16,6 +17,7 @@ type Client struct {
 	Conn    net.Conn
 	encoder *gob.Encoder
 	decoder *gob.Decoder
+	callMutex sync.Mutex
 }
 
 var errorType = reflect.TypeOf(new(error)).Elem()
@@ -30,7 +32,7 @@ func genZeroReturn(f reflect.Type) (ret []reflect.Value) {
 	return ret
 }
 
-func (this Client) MakeProxyFunc(name string, PtrToFunc interface{}) error {
+func (this *Client) MakeProxyFunc(name string, PtrToFunc interface{}) error {
 	val := reflect.ValueOf(PtrToFunc)
 	if val.Kind() != reflect.Ptr || reflect.Indirect(val).Kind() != reflect.Func {
 		panic(fmt.Errorf("Supplied service is not a pointer to struct"))
@@ -56,7 +58,7 @@ func (this Client) MakeProxyFunc(name string, PtrToFunc interface{}) error {
 	return nil
 }
 
-func (this Client) makeProxyFunc(name string, val reflect.Value) {
+func (this *Client) makeProxyFunc(name string, val reflect.Value) {
 	t := val.Type()
 	registerInsOuts(t)
 	async := t.NumOut() == 0
@@ -83,7 +85,7 @@ func (this Client) makeProxyFunc(name string, val reflect.Value) {
 	}))
 }
 
-func (this Client) MakeService(service interface{}) error {
+func (this *Client) MakeService(service interface{}) error {
 	val := reflect.ValueOf(service)
 	if val.Kind() != reflect.Ptr || reflect.Indirect(val).Kind() != reflect.Struct {
 		panic(fmt.Errorf("Supplied service is not a pointer to struct"))
@@ -121,11 +123,13 @@ func (this Client) MakeService(service interface{}) error {
 }
 
 func NewClient(conn net.Conn) *Client {
-	client := Client{conn, gob.NewEncoder(conn), gob.NewDecoder(conn)}
+	client := Client{Conn: conn, encoder: gob.NewEncoder(conn), decoder: gob.NewDecoder(conn)}
 	return &client
 }
 
-func (this Client) valueCall(name string, in []reflect.Value, async bool) ([]reflect.Value, error) {
+func (this *Client) valueCall(name string, in []reflect.Value, async bool) ([]reflect.Value, error) {
+	this.callMutex.Lock()
+	defer this.callMutex.Unlock()
 	args := []interface{}{}
 	for _, inarg := range in {
 		args = append(args, inarg.Interface())
@@ -159,7 +163,9 @@ func (this Client) valueCall(name string, in []reflect.Value, async bool) ([]ref
 	return rets, err
 }
 
-func (this Client) Call(name string, args ...interface{}) ([]interface{}, error) {
+func (this *Client) Call(name string, args ...interface{}) ([]interface{}, error) {
+	this.callMutex.Lock()
+	defer this.callMutex.Unlock()
 	err := this.encoder.Encode(call{Name: name, Args: args, Async: false})
 	if err != nil {
 		return []interface{}{}, err
@@ -181,12 +187,14 @@ func (this Client) Call(name string, args ...interface{}) ([]interface{}, error)
 	return rets, nil
 }
 
-func (this Client) AsyncCall(name string, args ...interface{}) (encode_err error) {
+func (this *Client) AsyncCall(name string, args ...interface{}) (encode_err error) {
+	this.callMutex.Lock()
+	defer this.callMutex.Unlock()
 	encode_err = this.encoder.Encode(call{Name: name, Args: args, Async: true})
 	return
 }
 
-func (this Client) Call1(name string, args ...interface{}) (interface{}, error) {
+func (this *Client) Call1(name string, args ...interface{}) (interface{}, error) {
 	var rets []interface{}
 	var err error
 	rets, err = this.Call(name, args...)
@@ -199,7 +207,7 @@ func (this Client) Call1(name string, args ...interface{}) (interface{}, error) 
 	return rets[0], err
 }
 
-func (this Client) Call2(name string, args ...interface{}) (interface{}, interface{}, error) {
+func (this *Client) Call2(name string, args ...interface{}) (interface{}, interface{}, error) {
 	var rets []interface{}
 	var err error
 	rets, err = this.Call(name, args...)
