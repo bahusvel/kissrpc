@@ -85,10 +85,9 @@ func registerInternal(t reflect.Type, v interface{}) error {
 		panic("Type is a channel, channels cannot be registered as values")
 	case reflect.Struct:
 		for i := 0; i < t.NumField(); i++ {
-			if unicode.IsLower([]rune(t.Field(i).Name)[0]) {
-				continue
+			if unicode.IsUpper([]rune(t.Field(i).Name)[0]) {
+				registerType(t.Field(i).Type)
 			}
-			registerType(t.Field(i).Type)
 		}
 	}
 	if debug {
